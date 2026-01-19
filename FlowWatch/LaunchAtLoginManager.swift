@@ -9,6 +9,7 @@ import Foundation
 import ServiceManagement
 import AppKit
 
+@MainActor
 final class LaunchAtLoginManager {
     static let shared = LaunchAtLoginManager()
     

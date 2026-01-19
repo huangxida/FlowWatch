@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Combine
 
+@MainActor
 final class StatusBarController: NSObject, ObservableObject {
     private let displayModeKey = "statusBarDisplayMode"
     private let maxColorRateKey = "maxColorRateMbps"

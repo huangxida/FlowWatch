@@ -39,7 +39,7 @@ extension Notification.Name {
 }
 
 @MainActor
-final class LocalizationManager: ObservableObject {
+final class LocalizationManager: @preconcurrency ObservableObject {
     static let shared = LocalizationManager()
     
     let objectWillChange = ObservableObjectPublisher()
