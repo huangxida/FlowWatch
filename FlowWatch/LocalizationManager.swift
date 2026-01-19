@@ -71,6 +71,7 @@ final class LocalizationManager: @preconcurrency ObservableObject {
 }
 
 enum L10n {
+    @MainActor
     static func t(_ key: String) -> String {
         LocalizationManager.shared.t(key)
     }
