@@ -1,0 +1,114 @@
+"settings.title" = "FlowWatch 设置";
+"settings.subtitle" = "状态栏显示、上色与启动选项";
+"settings.language" = "语言";
+"settings.language.system" = "跟随系统";
+"settings.language.zhHans" = "简体中文";
+"settings.language.en" = "English";
+
+"settings.section.displayContent" = "显示内容";
+"settings.section.statusBar" = "状态栏";
+"settings.section.coloring" = "上色";
+"settings.section.launch" = "启动";
+"settings.section.data" = "数据";
+
+"settings.displayMode.speed" = "速率";
+"settings.displayMode.total" = "今日累计";
+"settings.displayMode.both" = "都显示";
+
+"settings.maxColorRate.title" = "速率上色最大值";
+"settings.maxColorRate.desc" = "用于将状态栏的上/下行速率按快慢渐变上色。";
+
+"settings.launchAtLogin.toggle" = "开机自动启动";
+"settings.requires.macos13" = "需要 macOS 13.0+";
+
+"settings.data.resetToday" = "重置今日流量";
+"settings.data.clearAllHistory" = "清空全部历史";
+"settings.data.desc" = "“重置今日”只影响今天；“清空历史”会删除所有天的数据记录。";
+
+"alert.reset.title" = "确认重置流量统计？";
+"alert.reset.today" = "这将清零今日流量统计，且无法恢复。";
+"alert.reset.all" = "这将删除所有历史流量记录，并清零今日统计，且无法恢复。";
+
+"alert.launchAtLogin.errorTitle" = "无法修改开机自启";
+"alert.launchAtLogin.needsApproval" = "系统需要你的确认。已为你打开“系统设置 → 登录项”，请在其中允许 FlowWatch 后再回来勾选。";
+"alert.launchAtLogin.failed" = "系统拒绝了此次修改（%@）。\n\n如果你是从 Xcode 直接运行，建议将应用移动到“应用程序”目录或用 Archive 安装后再试。";
+
+"settings.launchAtLogin.hint.enabled" = "已开启，FlowWatch 会随系统登录自动启动。";
+"settings.launchAtLogin.hint.notRegistered" = "未开启。";
+"settings.launchAtLogin.hint.requiresApproval" = "需要在“系统设置 → 登录项”中允许后才能生效。";
+"settings.launchAtLogin.hint.notFound" = "系统未找到该服务，通常是应用未正确安装或签名异常。";
+
+"menuDisplayMode.icon" = "图标";
+"menuDisplayMode.compactSpeed" = "上下行速率";
+
+"daily.title" = "流量统计";
+"daily.section.last7days" = "近 7 天";
+"daily.section.allHistory" = "全部历史";
+"daily.download" = "下载";
+"daily.upload" = "上传";
+"daily.avg" = "日均 %@";
+
+"daily.fun.title" = "趣味统计";
+"daily.fun.peak.title" = "近 7 天峰值";
+"daily.fun.activeDays.title" = "活跃天数";
+"daily.fun.activeDays.subtitle" = "有流量的天数";
+"daily.fun.coefficient.title" = "上传/下载系数";
+"daily.fun.coefficient.subtitle" = "近 7 天（上传÷下载）";
+"daily.fun.persona.title" = "称号";
+"daily.fun.dayOverDay.title" = "今日较昨日";
+
+"daily.peak.noData" = "暂无数据";
+"daily.dayOverDay.even" = "持平";
+"daily.dayOverDay.subtitle" = "%@ vs %@";
+
+"daily.persona.diver" = "潜水员";
+"daily.persona.tier.heavy" = "重度";
+"daily.persona.tier.active" = "活跃";
+"daily.persona.tier.light" = "轻度";
+"daily.persona.role.uploader" = "上传侠";
+"daily.persona.role.downloader" = "下载党";
+"daily.persona.role.balanced" = "均衡派";
+"daily.persona.subtitle.noTraffic" = "近 7 天暂无流量";
+"daily.persona.subtitle.format" = "上 %@ · 下 %@";
+
+"daily.chart.date" = "日期";
+"daily.chart.type" = "类型";
+"daily.chart.downloadGuide" = "下载指示";
+"daily.chart.uploadGuide" = "上传指示";
+"daily.chart.downloadHighlight" = "下载高亮";
+"daily.chart.uploadHighlight" = "上传高亮";
+
+"daily.tooltip.download" = "下载 %@";
+"daily.tooltip.upload" = "上传 %@";
+
+"menuStatus.speed" = "网速";
+
+"content.title" = "网速监控";
+"content.subtitle" = "实时上/下行速率，状态栏常驻";
+"content.status.running" = "监控中";
+"content.status.paused" = "已暂停";
+"content.statusbarDisplay" = "状态栏显示";
+"content.hint.openMenu" = "点击菜单栏图标打开完整界面";
+"content.sampleInterval" = "采样间隔";
+"content.sampleInterval.value" = "%@ 秒";
+"content.action.pause" = "暂停监控";
+"content.action.resume" = "恢复监控";
+"content.action.quitApp" = "退出应用";
+
+"common.ok" = "好";
+"common.cancel" = "取消";
+"common.reset" = "重置";
+"common.clear" = "清空";
+"common.quit" = "退出";
+
+"menu.settings" = "设置…";
+"menu.quit" = "退出";
+"statusbar.lastLaunch" = "上次启动：%@";
+
+"quit.confirm.title" = "确认退出 FlowWatch？";
+"quit.confirm.message" = "退出后将停止状态栏监控，需要手动重新启动应用。";
+
+"launch.prompt.title" = "开启开机自启动？";
+"launch.prompt.message" = "建议开启开机自启动，以便持续监控网速并记录每日流量。\n\n你可以在“设置…”中随时更改此选项。";
+"launch.prompt.enable" = "开启";
+"launch.prompt.notNow" = "暂不";

@@ -1,0 +1,17 @@
+.DS_Store
+
+.trae/
+.gemini-clipboard/
+
+DerivedData/
+build/
+dist/
+.tap-test/
+.tap-live/
+.brew-apps/
+
+*.xcuserstate
+xcuserdata/
+
+*.bak.png
+*.trimmed.png

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "sourcekit-lsp": {
+      "command": ["sourcekit-lsp"],
+      "extensions": [".swift"],
+      "env": {},
+      "initialization": {}
+    }
+  }
+}

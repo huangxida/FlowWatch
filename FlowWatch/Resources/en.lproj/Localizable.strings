@@ -1,0 +1,114 @@
+"settings.title" = "Settings";
+"settings.subtitle" = "Menu bar display, coloring, and launch options";
+"settings.language" = "Language";
+"settings.language.system" = "System";
+"settings.language.zhHans" = "Simplified Chinese";
+"settings.language.en" = "English";
+
+"settings.section.displayContent" = "Display";
+"settings.section.statusBar" = "Menu Bar";
+"settings.section.coloring" = "Coloring";
+"settings.section.launch" = "Launch";
+"settings.section.data" = "Data";
+
+"settings.displayMode.speed" = "Speed";
+"settings.displayMode.total" = "Today Total";
+"settings.displayMode.both" = "Both";
+
+"settings.maxColorRate.title" = "Max rate for coloring";
+"settings.maxColorRate.desc" = "Color menu bar up/down speed by how fast it is.";
+
+"settings.launchAtLogin.toggle" = "Launch at login";
+"settings.requires.macos13" = "Requires macOS 13.0+";
+
+"settings.data.resetToday" = "Reset today";
+"settings.data.clearAllHistory" = "Clear all history";
+"settings.data.desc" = "\"Reset today\" only affects today; \"Clear all history\" deletes all recorded days.";
+
+"alert.reset.title" = "Reset traffic stats?";
+"alert.reset.today" = "This will reset today’s traffic stats and cannot be undone.";
+"alert.reset.all" = "This will delete all history and reset today’s stats and cannot be undone.";
+
+"alert.launchAtLogin.errorTitle" = "Unable to change launch at login";
+"alert.launchAtLogin.needsApproval" = "System approval is required. The Login Items page has been opened—allow FlowWatch there and try again.";
+"alert.launchAtLogin.failed" = "The system rejected the change (%@).\n\nIf you’re running from Xcode, try moving the app to /Applications or install from an Archive.";
+
+"settings.launchAtLogin.hint.enabled" = "Enabled. FlowWatch will start when you log in.";
+"settings.launchAtLogin.hint.notRegistered" = "Not enabled.";
+"settings.launchAtLogin.hint.requiresApproval" = "You must allow it in System Settings → Login Items.";
+"settings.launchAtLogin.hint.notFound" = "Service not found. The app may not be installed correctly or the signature is invalid.";
+
+"menuDisplayMode.icon" = "Icon";
+"menuDisplayMode.compactSpeed" = "Up/Down Speed";
+
+"daily.title" = "Traffic";
+"daily.section.last7days" = "Last 7 days";
+"daily.section.allHistory" = "All time";
+"daily.download" = "Download";
+"daily.upload" = "Upload";
+"daily.avg" = "Avg %@" ;
+
+"daily.fun.title" = "Fun stats";
+"daily.fun.peak.title" = "7-day peak";
+"daily.fun.activeDays.title" = "Active days";
+"daily.fun.activeDays.subtitle" = "Days with traffic";
+"daily.fun.coefficient.title" = "Upload/Download ratio";
+"daily.fun.coefficient.subtitle" = "Last 7 days (upload ÷ download)";
+"daily.fun.persona.title" = "Persona";
+"daily.fun.dayOverDay.title" = "Today vs yesterday";
+
+"daily.peak.noData" = "No data";
+"daily.dayOverDay.even" = "Even";
+"daily.dayOverDay.subtitle" = "%@ vs %@";
+
+"daily.persona.diver" = "Diver";
+"daily.persona.tier.heavy" = "Heavy ";
+"daily.persona.tier.active" = "Active ";
+"daily.persona.tier.light" = "Light ";
+"daily.persona.role.uploader" = "Uploader";
+"daily.persona.role.downloader" = "Downloader";
+"daily.persona.role.balanced" = "Balanced";
+"daily.persona.subtitle.noTraffic" = "No traffic in last 7 days";
+"daily.persona.subtitle.format" = "Up %@ · Down %@";
+
+"daily.chart.date" = "Date";
+"daily.chart.type" = "Type";
+"daily.chart.downloadGuide" = "Download guide";
+"daily.chart.uploadGuide" = "Upload guide";
+"daily.chart.downloadHighlight" = "Download highlight";
+"daily.chart.uploadHighlight" = "Upload highlight";
+
+"daily.tooltip.download" = "Download %@";
+"daily.tooltip.upload" = "Upload %@";
+
+"menuStatus.speed" = "Speed";
+
+"content.title" = "Flow Monitor";
+"content.subtitle" = "Real-time up/down speed, always in the menu bar";
+"content.status.running" = "Monitoring";
+"content.status.paused" = "Paused";
+"content.statusbarDisplay" = "Menu bar display";
+"content.hint.openMenu" = "Click the menu bar icon to open the full view";
+"content.sampleInterval" = "Sample interval";
+"content.sampleInterval.value" = "%@ s";
+"content.action.pause" = "Pause";
+"content.action.resume" = "Resume";
+"content.action.quitApp" = "Quit app";
+
+"common.ok" = "OK";
+"common.cancel" = "Cancel";
+"common.reset" = "Reset";
+"common.clear" = "Clear";
+"common.quit" = "Quit";
+
+"menu.settings" = "Settings…";
+"menu.quit" = "Quit";
+"statusbar.lastLaunch" = "Last launch: %@";
+
+"quit.confirm.title" = "Quit FlowWatch?";
+"quit.confirm.message" = "Quitting will stop menu bar monitoring. You’ll need to launch the app again to resume.";
+
+"launch.prompt.title" = "Enable launch at login?";
+"launch.prompt.message" = "Recommended to keep monitoring and recording daily traffic.\n\nYou can change this anytime in Settings…";
+"launch.prompt.enable" = "Enable";
+"launch.prompt.notNow" = "Not now";
