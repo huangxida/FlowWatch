@@ -15,3 +15,11 @@ xcuserdata/
 
 *.bak.png
 *.trimmed.png
+
+AGENTS.md
+CLAUDE.md
+CONTRIBUTING.md
+opencode-lsp.md
+opencode.json
+docs/RELEASING.md
+.claude
