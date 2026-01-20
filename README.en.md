@@ -24,4 +24,4 @@ brew install --cask flowwatch
 
 | Settings | Popup |
 | --- | --- |
-| <img src=".github/assets/settings.png" width="420" alt="Settings" /> | <img src=".github/assets/popup.png" width="420" alt="Popup" /> |
+| <img src=".github/assets/settings-en.png" width="420" alt="Settings" /> | <img src=".github/assets/popup-en.png" width="420" alt="Popup" /> |
