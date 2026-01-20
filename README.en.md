@@ -11,6 +11,11 @@
 - Today/total traffic stats and charts (Charts, macOS 13+)
 - Custom sampling interval and display style
 
+## Data & Privacy
+- Traffic stats are calculated locally from system network interface counters; no packet content is captured.
+- Settings and daily totals are stored on your device only (UserDefaults).
+- No account is required, and the app does not upload or sync your data.
+
 ## Install
 ```bash
 brew tap huangxida/flowwatch
