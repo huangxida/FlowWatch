@@ -8,6 +8,15 @@ CONFIGURATION="Release"
 
 DIST_DIR="$ROOT_DIR/dist"
 DERIVED_DATA_PATH="$DIST_DIR/DerivedData"
+EXTRA_BUILD_SETTINGS=()
+
+if [[ -n "${MARKETING_VERSION:-}" ]]; then
+  EXTRA_BUILD_SETTINGS+=("MARKETING_VERSION=$MARKETING_VERSION")
+fi
+
+if [[ -n "${CURRENT_PROJECT_VERSION:-}" ]]; then
+  EXTRA_BUILD_SETTINGS+=("CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION")
+fi
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
   echo "未找到 xcodebuild。请安装 Xcode（建议 Xcode 15+）后重试。"
@@ -39,6 +48,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" \
+  "${EXTRA_BUILD_SETTINGS[@]}" \
   build
 
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/FlowWatch.app"

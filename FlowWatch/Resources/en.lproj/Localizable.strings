@@ -102,11 +102,37 @@
 "common.quit" = "Quit";
 
 "menu.settings" = "Settings…";
+"menu.about" = "About FlowWatch";
+"menu.checkUpdate" = "Check for Updates…";
+"menu.checkingUpdate" = "Checking for Updates…";
+"menu.updating" = "Updating…";
+"menu.updateAvailable" = "Update Available %@";
+"menu.upToDate" = "Up to Date";
+"menu.updateFailed" = "Update Check Failed";
 "menu.quit" = "Quit";
 "statusbar.lastLaunch" = "Last launch: %@";
 
 "quit.confirm.title" = "Quit FlowWatch?";
 "quit.confirm.message" = "Quitting will stop menu bar monitoring. You’ll need to launch the app again to resume.";
+
+"about.version.format" = "Version %@ (build %@)";
+
+"update.check.upToDate.title" = "Up to Date";
+"update.check.upToDate.message" = "FlowWatch is up to date.";
+"update.check.failed.title" = "Update Check Failed";
+"update.check.failed.message" = "%@";
+"update.available.title" = "Update Available %@";
+"update.available.message" = "Update now?";
+"update.available.updateNow" = "Update";
+"update.available.later" = "Later";
+"update.upgrade.success.title" = "Update Complete";
+"update.upgrade.success.message" = "Update finished. Please relaunch the app.";
+"update.upgrade.failed.title" = "Update Failed";
+"update.upgrade.failed.message" = "%@";
+"update.brew.notFound" = "Homebrew not found. Please install it and make sure brew works in Terminal.";
+"update.brew.commandFailed" = "Homebrew failed: %@";
+"update.dmg.unavailable" = "Auto update is not available. Download the latest version from GitHub Releases.";
+"update.openDownload" = "Open Download Page";
 
 "launch.prompt.title" = "Enable launch at login?";
 "launch.prompt.message" = "Recommended to keep monitoring and recording daily traffic.\n\nYou can change this anytime in Settings…";

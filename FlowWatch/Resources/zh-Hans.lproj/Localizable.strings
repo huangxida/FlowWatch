@@ -102,11 +102,37 @@
 "common.quit" = "退出";
 
 "menu.settings" = "设置…";
+"menu.about" = "关于 FlowWatch";
+"menu.checkUpdate" = "检查更新…";
+"menu.checkingUpdate" = "正在检查更新…";
+"menu.updating" = "正在更新…";
+"menu.updateAvailable" = "发现新版本 %@";
+"menu.upToDate" = "已是最新版本";
+"menu.updateFailed" = "更新检查失败";
 "menu.quit" = "退出";
 "statusbar.lastLaunch" = "上次启动：%@";
 
 "quit.confirm.title" = "确认退出 FlowWatch？";
 "quit.confirm.message" = "退出后将停止状态栏监控，需要手动重新启动应用。";
+
+"about.version.format" = "版本 %@（构建 %@）";
+
+"update.check.upToDate.title" = "已是最新版本";
+"update.check.upToDate.message" = "FlowWatch 已是最新版本。";
+"update.check.failed.title" = "检查更新失败";
+"update.check.failed.message" = "%@";
+"update.available.title" = "发现新版本 %@";
+"update.available.message" = "是否现在更新？";
+"update.available.updateNow" = "现在更新";
+"update.available.later" = "稍后";
+"update.upgrade.success.title" = "更新完成";
+"update.upgrade.success.message" = "已完成更新，请重新启动应用。";
+"update.upgrade.failed.title" = "更新失败";
+"update.upgrade.failed.message" = "%@";
+"update.brew.notFound" = "未找到 Homebrew，请确认已安装并可在终端使用 brew。";
+"update.brew.commandFailed" = "Homebrew 执行失败：%@";
+"update.dmg.unavailable" = "当前版本未启用自动更新，请前往 GitHub Releases 下载最新版本。";
+"update.openDownload" = "前往下载";
 
 "launch.prompt.title" = "开启开机自启动？";
 "launch.prompt.message" = "建议开启开机自启动，以便持续监控网速并记录每日流量。\n\n你可以在“设置…”中随时更改此选项。";

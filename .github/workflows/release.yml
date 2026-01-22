@@ -1,124 +1,108 @@
-name: Release
+name: release
 
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch:
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: macos-latest
+  release:
+    runs-on: macos-14
     steps:
-      - name: Check build environment
-        run: |
-          sw_vers
-          xcodebuild -version
-
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Extract version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-
-      - name: Update app version
+      - name: Set version
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = ${VERSION};/" FlowWatch.xcodeproj/project.pbxproj
-          sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = ${GITHUB_RUN_NUMBER};/" FlowWatch.xcodeproj/project.pbxproj
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
-      - name: Import signing certificate
+      - name: Setup signing keychain
+        if: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
         env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          set -euo pipefail
-          if [[ -z "${MACOS_CERTIFICATE_P12_BASE64:-}" ]]; then
-            echo "未配置签名证书，跳过证书导入。"
-            exit 0
-          fi
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          CERT_PATH="$RUNNER_TEMP/cert.p12"
-          echo "$MACOS_CERTIFICATE_P12_BASE64" | base64 -D > "$CERT_PATH"
+          CERT_PATH="$RUNNER_TEMP/build_cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          echo "$MACOS_CERT_P12" | base64 -D > "$CERT_PATH"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-      - name: Build app and package
+      - name: Build release artifacts
         env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${MACOS_CERTIFICATE_P12_BASE64:-}" ]]; then
-            zsh scripts/release_build.sh
-          else
-            zsh scripts/release_build_unsigned.sh
-          fi
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          MARKETING_VERSION: ${{ env.VERSION }}
+          CURRENT_PROJECT_VERSION: ${{ env.BUILD_NUMBER }}
+        run: scripts/release_build.sh
 
-      - name: Notarize and staple
+      - name: Notarize DMG
+        if: ${{ secrets.NOTARYTOOL_KEY_ID != '' && secrets.NOTARYTOOL_ISSUER_ID != '' && secrets.NOTARYTOOL_KEY != '' }}
         env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           NOTARYTOOL_KEY_ID: ${{ secrets.NOTARYTOOL_KEY_ID }}
           NOTARYTOOL_ISSUER_ID: ${{ secrets.NOTARYTOOL_ISSUER_ID }}
-          NOTARYTOOL_KEY_P8_BASE64: ${{ secrets.NOTARYTOOL_KEY_P8_BASE64 }}
+          NOTARYTOOL_KEY: ${{ secrets.NOTARYTOOL_KEY }}
         run: |
-          set -euo pipefail
-          if [[ -z "${MACOS_CERTIFICATE_P12_BASE64:-}" ]]; then
-            echo "未配置签名证书，跳过公证。"
-            exit 0
-          fi
-          if [[ -z "${APPLE_ID:-}" && -z "${NOTARYTOOL_KEY_ID:-}" ]]; then
-            echo "未配置公证凭据，跳过公证。"
-            exit 0
-          fi
-          if [[ -n "${NOTARYTOOL_KEY_P8_BASE64:-}" ]]; then
-            KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-            echo "$NOTARYTOOL_KEY_P8_BASE64" | base64 -D > "$KEY_PATH"
-            export NOTARYTOOL_KEY_FILE="$KEY_PATH"
-          fi
-          zsh scripts/notarize.sh dist/FlowWatch.dmg
+          NOTARY_KEY_PATH="$RUNNER_TEMP/notarytool.p8"
+          printf "%s" "$NOTARYTOOL_KEY" > "$NOTARY_KEY_PATH"
+          export NOTARYTOOL_KEY_FILE="$NOTARY_KEY_PATH"
+          scripts/notarize.sh dist/FlowWatch.dmg
 
-      - name: Create or update GitHub Release
+      - name: Build Sparkle generate_appcast
+        env:
+          SPARKLE_VERSION: 2.8.1
+        run: |
+          git clone --depth 1 --branch "$SPARKLE_VERSION" https://github.com/sparkle-project/Sparkle.git /tmp/Sparkle
+          xcodebuild -project /tmp/Sparkle/Sparkle.xcodeproj -scheme generate_appcast -configuration Release -derivedDataPath /tmp/Sparkle/DerivedData build
+          echo "SPARKLE_GENERATE_APPCAST=/tmp/Sparkle/DerivedData/Build/Products/Release/generate_appcast" >> "$GITHUB_ENV"
+
+      - name: Generate appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_PRIVATE_KEY is required" >&2
+            exit 2
+          fi
+          mkdir -p dist/appcast
+          cp dist/FlowWatch.dmg dist/appcast/
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/"
+          echo "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_GENERATE_APPCAST" --ed-key-file - --download-url-prefix "$DOWNLOAD_URL" -o dist/appcast.xml dist/appcast
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/FlowWatch.dmg
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            dist/FlowWatch.zip
+            dist/appcast.xml
 
-      - name: Update Homebrew tap cask
+      - name: Update Homebrew tap
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         env:
-          HOMEBREW_TAP_REPO: huangxida/homebrew-flowwatch
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          HOMEBREW_TAP_REPO: ${{ secrets.HOMEBREW_TAP_REPO }}
         run: |
-          set -euo pipefail
-          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
-            echo "未配置 HOMEBREW_TAP_TOKEN，跳过 Homebrew tap 更新。"
-            exit 0
+          TAP_REPO="${HOMEBREW_TAP_REPO:-huangxida/homebrew-flowwatch}"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" /tmp/homebrew-flowwatch
+          cd /tmp/homebrew-flowwatch
+          ruby "$GITHUB_WORKSPACE/.github/scripts/update_homebrew_cask.rb" "$GITHUB_WORKSPACE/dist/FlowWatch.dmg" "${VERSION}" "Casks/flowwatch.rb"
+          git status --porcelain
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Casks/flowwatch.rb
+            git commit -m "flowwatch ${VERSION}"
+            git push origin HEAD:main
+          else
+            echo "No changes to Homebrew tap"
           fi
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/FlowWatch.dmg"
-          curl -fsSL -L "$RELEASE_URL" -o "$RUNNER_TEMP/FlowWatch.dmg"
-          SHA256="$(shasum -a 256 "$RUNNER_TEMP/FlowWatch.dmg" | awk '{print $1}')"
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${HOMEBREW_TAP_REPO}.git" "$RUNNER_TEMP/homebrew-flowwatch"
-          cd "$RUNNER_TEMP/homebrew-flowwatch"
-          perl -0777 -i -pe "s/version \\\"[^\\\"]+\\\"/version \\\"${VERSION}\\\"/g; s/sha256 \\\"[^\\\"]+\\\"/sha256 \\\"${SHA256}\\\"/g; s#url \\\"https://github\\.com/huangxida/FlowWatch/releases/download/v\\#\\{version\\}/FlowWatch(\\-\\#\\{version\\})?\\.dmg\\\"#url \\\"https://github.com/huangxida/FlowWatch/releases/download/v\\#\\{version\\}/FlowWatch.dmg\\\"#g;" Casks/flowwatch.rb
-          git add Casks/flowwatch.rb
-          git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" commit -m "flowwatch ${VERSION}" || exit 0
-          git push origin main

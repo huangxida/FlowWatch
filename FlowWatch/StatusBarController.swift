@@ -9,7 +9,9 @@ final class StatusBarController: NSObject, ObservableObject {
     private let lastLaunchTime = Date()
     private let monitor: NetworkUsageMonitor
     private let statusItem: NSStatusItem
+    private let updateManager = UpdateManager()
     private weak var startTimeMenuItem: NSMenuItem?
+    private weak var updateMenuItem: NSMenuItem?
     private var maxColorRateMbps: Double {
         get {
             UserDefaults.standard.object(forKey: maxColorRateKey) as? Double ?? 100
@@ -32,7 +34,9 @@ final class StatusBarController: NSObject, ObservableObject {
         bindMonitor()
         bindUserDefaults()
         bindNotifications()
+        bindUpdateManager()
         updateStatusButtonContent()
+        scheduleAutomaticUpdateCheck()
     }
 
     private func configureStatusButton() {
@@ -82,6 +86,15 @@ final class StatusBarController: NSObject, ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func bindUpdateManager() {
+        updateManager.$status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshUpdateMenuItem()
             }
             .store(in: &cancellables)
     }
@@ -346,6 +359,23 @@ final class StatusBarController: NSObject, ObservableObject {
         SettingsWindowController.shared.show()
     }
 
+    @objc private func openAbout() {
+        let versionText = String(
+            format: LocalizationManager.shared.t("about.version.format"),
+            AppVersion.shortVersion,
+            AppVersion.buildNumber
+        )
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [
+            .applicationVersion: versionText
+        ])
+    }
+
+    @objc private func checkForUpdates() {
+        updateManager.checkForUpdates(userInitiated: true)
+        refreshUpdateMenuItem()
+    }
+
     @objc private func quitApp() {
         let alert = NSAlert()
         alert.messageText = LocalizationManager.shared.t("quit.confirm.title")
@@ -359,6 +389,37 @@ final class StatusBarController: NSObject, ObservableObject {
             NSApplication.shared.terminate(nil)
         }
     }
+
+    private func scheduleAutomaticUpdateCheck() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            self?.updateManager.checkForUpdatesIfNeeded()
+        }
+    }
+
+    private func refreshUpdateMenuItem() {
+        guard let updateMenuItem else { return }
+        updateMenuItem.title = updateMenuTitle(for: updateManager.status)
+        updateMenuItem.isEnabled = updateManager.canCheckForUpdates
+            && updateManager.status != .checking
+            && updateManager.status != .updating
+    }
+
+    private func updateMenuTitle(for status: UpdateManager.UpdateStatus) -> String {
+        switch status {
+        case .idle:
+            return LocalizationManager.shared.t("menu.checkUpdate")
+        case .checking:
+            return LocalizationManager.shared.t("menu.checkingUpdate")
+        case .updating:
+            return LocalizationManager.shared.t("menu.updating")
+        case .upToDate:
+            return LocalizationManager.shared.t("menu.upToDate")
+        case .failed:
+            return LocalizationManager.shared.t("menu.updateFailed")
+        case .updateAvailable(let version):
+            return String(format: LocalizationManager.shared.t("menu.updateAvailable"), version)
+        }
+    }
     
     private func rebuildMenu() {
         let newMenu = NSMenu()
@@ -367,6 +428,14 @@ final class StatusBarController: NSObject, ObservableObject {
         startTimeMenuItem = startItem
         newMenu.addItem(startItem)
         newMenu.addItem(makeDailyTrafficMenuItem())
+        newMenu.addItem(.separator())
+        let checkUpdateItem = NSMenuItem(title: LocalizationManager.shared.t("menu.checkUpdate"), action: #selector(checkForUpdates), keyEquivalent: "")
+        checkUpdateItem.target = self
+        updateMenuItem = checkUpdateItem
+        newMenu.addItem(checkUpdateItem)
+        let aboutItem = NSMenuItem(title: LocalizationManager.shared.t("menu.about"), action: #selector(openAbout), keyEquivalent: "")
+        aboutItem.target = self
+        newMenu.addItem(aboutItem)
         newMenu.addItem(.separator())
         let settingsItem = NSMenuItem(title: LocalizationManager.shared.t("menu.settings"), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.keyEquivalentModifierMask = [.command]
@@ -378,5 +447,6 @@ final class StatusBarController: NSObject, ObservableObject {
         newMenu.addItem(quitItem)
         menu = newMenu
         statusItem.menu = menu
+        refreshUpdateMenuItem()
     }
 }
