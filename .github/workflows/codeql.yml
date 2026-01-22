@@ -3,8 +3,18 @@ name: "CodeQL"
 on:
   push:
     branches: ["main"]
+    paths:
+      - "FlowWatch/**"
+      - "FlowWatch.xcodeproj/**"
+      - ".github/workflows/codeql.yml"
+      - "scripts/**"
   pull_request:
     branches: ["main"]
+    paths:
+      - "FlowWatch/**"
+      - "FlowWatch.xcodeproj/**"
+      - ".github/workflows/codeql.yml"
+      - "scripts/**"
   schedule:
     - cron: "22 3 * * 1"
 
