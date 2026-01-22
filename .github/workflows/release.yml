@@ -11,6 +11,17 @@ permissions:
 jobs:
   release:
     runs-on: macos-14
+    env:
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      TEAM_ID: ${{ secrets.TEAM_ID }}
+      NOTARYTOOL_KEY_ID: ${{ secrets.NOTARYTOOL_KEY_ID }}
+      NOTARYTOOL_ISSUER_ID: ${{ secrets.NOTARYTOOL_ISSUER_ID }}
+      NOTARYTOOL_KEY: ${{ secrets.NOTARYTOOL_KEY }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      HOMEBREW_TAP_REPO: ${{ secrets.HOMEBREW_TAP_REPO }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,11 +33,7 @@ jobs:
           echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
       - name: Setup signing keychain
-        if: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
-        env:
-          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
-          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        if: ${{ env.MACOS_CERT_P12 != '' && env.MACOS_CERT_PASSWORD != '' && env.KEYCHAIN_PASSWORD != '' }}
         run: |
           CERT_PATH="$RUNNER_TEMP/build_cert.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
@@ -40,17 +47,12 @@ jobs:
 
       - name: Build release artifacts
         env:
-          TEAM_ID: ${{ secrets.TEAM_ID }}
           MARKETING_VERSION: ${{ env.VERSION }}
           CURRENT_PROJECT_VERSION: ${{ env.BUILD_NUMBER }}
         run: scripts/release_build.sh
 
       - name: Notarize DMG
-        if: ${{ secrets.NOTARYTOOL_KEY_ID != '' && secrets.NOTARYTOOL_ISSUER_ID != '' && secrets.NOTARYTOOL_KEY != '' }}
-        env:
-          NOTARYTOOL_KEY_ID: ${{ secrets.NOTARYTOOL_KEY_ID }}
-          NOTARYTOOL_ISSUER_ID: ${{ secrets.NOTARYTOOL_ISSUER_ID }}
-          NOTARYTOOL_KEY: ${{ secrets.NOTARYTOOL_KEY }}
+        if: ${{ env.NOTARYTOOL_KEY_ID != '' && env.NOTARYTOOL_ISSUER_ID != '' && env.NOTARYTOOL_KEY != '' }}
         run: |
           NOTARY_KEY_PATH="$RUNNER_TEMP/notarytool.p8"
           printf "%s" "$NOTARYTOOL_KEY" > "$NOTARY_KEY_PATH"
@@ -66,8 +68,6 @@ jobs:
           echo "SPARKLE_GENERATE_APPCAST=/tmp/Sparkle/DerivedData/Build/Products/Release/generate_appcast" >> "$GITHUB_ENV"
 
       - name: Generate appcast
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
             echo "SPARKLE_PRIVATE_KEY is required" >&2
@@ -87,10 +87,7 @@ jobs:
             dist/appcast.xml
 
       - name: Update Homebrew tap
-        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          HOMEBREW_TAP_REPO: ${{ secrets.HOMEBREW_TAP_REPO }}
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
         run: |
           TAP_REPO="${HOMEBREW_TAP_REPO:-huangxida/homebrew-flowwatch}"
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" /tmp/homebrew-flowwatch
