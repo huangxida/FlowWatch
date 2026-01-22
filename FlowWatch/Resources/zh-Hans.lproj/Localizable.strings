@@ -9,16 +9,22 @@
 "settings.section.statusBar" = "状态栏";
 "settings.section.coloring" = "上色";
 "settings.section.launch" = "启动";
+"settings.section.updates" = "更新";
 "settings.section.data" = "数据";
+
+"settings.displayContent.label" = "状态栏显示";
 
 "settings.displayMode.speed" = "速率";
 "settings.displayMode.total" = "今日累计";
 "settings.displayMode.both" = "都显示";
 
-"settings.maxColorRate.title" = "速率上色最大值";
-"settings.maxColorRate.desc" = "用于将状态栏的上/下行速率按快慢渐变上色。";
+"settings.maxColorRate.limitTitle" = "上色上限";
+"settings.maxColorRate.intensityTitle" = "上色强度";
+"settings.maxColorRate.desc" = "上限决定颜色变化的速度阈值，强度用于按比例缩放上色范围。";
 
 "settings.launchAtLogin.toggle" = "开机自动启动";
+"settings.update.autoCheck" = "自动检测更新";
+"settings.update.hint" = "仅影响自动检查，手动检查不受影响。";
 "settings.requires.macos13" = "需要 macOS 13.0+";
 
 "settings.data.resetToday" = "重置今日流量";
@@ -56,6 +62,7 @@
 "daily.fun.coefficient.subtitle" = "近 7 天（上传÷下载）";
 "daily.fun.persona.title" = "称号";
 "daily.fun.dayOverDay.title" = "今日较昨日";
+"daily.fun.range.last7days" = "近 7 天";
 
 "daily.peak.noData" = "暂无数据";
 "daily.dayOverDay.even" = "持平";
@@ -116,6 +123,7 @@
 "quit.confirm.message" = "退出后将停止状态栏监控，需要手动重新启动应用。";
 
 "about.version.format" = "版本 %@（构建 %@）";
+"about.github" = "GitHub 仓库";
 
 "update.check.upToDate.title" = "已是最新版本";
 "update.check.upToDate.message" = "FlowWatch 已是最新版本。";
@@ -123,6 +131,7 @@
 "update.check.failed.message" = "%@";
 "update.available.title" = "发现新版本 %@";
 "update.available.message" = "是否现在更新？";
+"update.available.message.dmg" = "是否前往下载最新版本？";
 "update.available.updateNow" = "现在更新";
 "update.available.later" = "稍后";
 "update.upgrade.success.title" = "更新完成";
@@ -133,6 +142,9 @@
 "update.brew.commandFailed" = "Homebrew 执行失败：%@";
 "update.dmg.unavailable" = "当前版本未启用自动更新，请前往 GitHub Releases 下载最新版本。";
 "update.openDownload" = "前往下载";
+"update.github.invalidRelease" = "无法解析 GitHub Release 信息，请稍后再试。";
+"update.github.rateLimited" = "GitHub 请求过于频繁，请稍后再试。";
+"update.network.error" = "网络连接异常，请稍后再试。";
 
 "launch.prompt.title" = "开启开机自启动？";
 "launch.prompt.message" = "建议开启开机自启动，以便持续监控网速并记录每日流量。\n\n你可以在“设置…”中随时更改此选项。";

@@ -108,6 +108,7 @@ struct ContentView: View {
         }
     }
 
+
     private var footerButtons: some View {
         HStack {
             Button(monitor.isActive ? l10n.t("content.action.pause") : l10n.t("content.action.resume")) {

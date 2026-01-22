@@ -6,19 +6,31 @@ import Combine
 final class StatusBarController: NSObject, ObservableObject {
     private let displayModeKey = "statusBarDisplayMode"
     private let maxColorRateKey = "maxColorRateMbps"
-    private let lastLaunchTime = Date()
+    private let colorRatePercentKey = "colorRatePercent"
     private let monitor: NetworkUsageMonitor
     private let statusItem: NSStatusItem
-    private let updateManager = UpdateManager()
-    private weak var startTimeMenuItem: NSMenuItem?
+    private let updateManager = UpdateManager.shared
     private weak var updateMenuItem: NSMenuItem?
     private var maxColorRateMbps: Double {
         get {
             UserDefaults.standard.object(forKey: maxColorRateKey) as? Double ?? 100
         }
         set {
-            let clamped = max(0, min(newValue, 100))
+            let clamped = max(0, newValue)
             UserDefaults.standard.set(clamped, forKey: maxColorRateKey)
+            updateStatusButtonContent()
+        }
+    }
+    private var colorRatePercent: Double {
+        get {
+            if UserDefaults.standard.object(forKey: colorRatePercentKey) == nil {
+                return 100
+            }
+            return UserDefaults.standard.double(forKey: colorRatePercentKey)
+        }
+        set {
+            let clamped = max(0, min(newValue, 100))
+            UserDefaults.standard.set(clamped, forKey: colorRatePercentKey)
             updateStatusButtonContent()
         }
     }
@@ -62,7 +74,6 @@ final class StatusBarController: NSObject, ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateStatusButtonContent()
-                self?.refreshStartTimeTitle()
             }
             .store(in: &cancellables)
     }
@@ -86,6 +97,14 @@ final class StatusBarController: NSObject, ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .flowWatchCheckForUpdates)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateManager.checkForUpdates(userInitiated: true)
+                self?.refreshUpdateMenuItem()
             }
             .store(in: &cancellables)
     }
@@ -116,7 +135,8 @@ final class StatusBarController: NSObject, ObservableObject {
 
     private func colorForSpeed(_ bytesPerSecond: Double) -> NSColor {
         let mbps = max(0, bytesPerSecond) * 8 / 1_000_000
-        let maxRate = max(0, maxColorRateMbps)
+        let percent = max(0, min(colorRatePercent, 100))
+        let maxRate = max(0, maxColorRateMbps) * percent / 100
         guard maxRate > 0 else {
             return normalizedColor(.white)
         }
@@ -322,16 +342,6 @@ final class StatusBarController: NSObject, ObservableObject {
         }
     }
 
-    private func startTimeTitle() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return String(format: LocalizationManager.shared.t("statusbar.lastLaunch"), formatter.string(from: lastLaunchTime))
-    }
-    
-    private func refreshStartTimeTitle() {
-        startTimeMenuItem?.title = startTimeTitle()
-    }
-
     private func performResetToday() {
         monitor.resetTodayTraffic()
     }
@@ -347,7 +357,7 @@ final class StatusBarController: NSObject, ObservableObject {
         )
         hostingView.layoutSubtreeIfNeeded()
         var size = hostingView.fittingSize
-        size.height += 24
+        size.height += 36
         hostingView.frame = NSRect(origin: .zero, size: size)
 
         let item = NSMenuItem()
@@ -360,15 +370,7 @@ final class StatusBarController: NSObject, ObservableObject {
     }
 
     @objc private func openAbout() {
-        let versionText = String(
-            format: LocalizationManager.shared.t("about.version.format"),
-            AppVersion.shortVersion,
-            AppVersion.buildNumber
-        )
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        NSApplication.shared.orderFrontStandardAboutPanel(options: [
-            .applicationVersion: versionText
-        ])
+        AboutWindowController.shared.show()
     }
 
     @objc private func checkForUpdates() {
@@ -398,10 +400,22 @@ final class StatusBarController: NSObject, ObservableObject {
 
     private func refreshUpdateMenuItem() {
         guard let updateMenuItem else { return }
-        updateMenuItem.title = updateMenuTitle(for: updateManager.status)
+        let title = updateMenuTitle(for: updateManager.status)
+        updateMenuItem.attributedTitle = nil
+        updateMenuItem.title = title
         updateMenuItem.isEnabled = updateManager.canCheckForUpdates
             && updateManager.status != .checking
             && updateManager.status != .updating
+
+        if case .updateAvailable = updateManager.status {
+            let baseFont = NSFont.menuFont(ofSize: 0)
+            let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: NSColor.labelColor,
+                .font: boldFont
+            ]
+            updateMenuItem.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+        }
     }
 
     private func updateMenuTitle(for status: UpdateManager.UpdateStatus) -> String {
@@ -423,12 +437,12 @@ final class StatusBarController: NSObject, ObservableObject {
     
     private func rebuildMenu() {
         let newMenu = NSMenu()
-        let startItem = NSMenuItem(title: startTimeTitle(), action: nil, keyEquivalent: "")
-        startItem.isEnabled = false
-        startTimeMenuItem = startItem
-        newMenu.addItem(startItem)
         newMenu.addItem(makeDailyTrafficMenuItem())
         newMenu.addItem(.separator())
+        let settingsItem = NSMenuItem(title: LocalizationManager.shared.t("menu.settings"), action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = [.command]
+        settingsItem.target = self
+        newMenu.addItem(settingsItem)
         let checkUpdateItem = NSMenuItem(title: LocalizationManager.shared.t("menu.checkUpdate"), action: #selector(checkForUpdates), keyEquivalent: "")
         checkUpdateItem.target = self
         updateMenuItem = checkUpdateItem
@@ -436,11 +450,6 @@ final class StatusBarController: NSObject, ObservableObject {
         let aboutItem = NSMenuItem(title: LocalizationManager.shared.t("menu.about"), action: #selector(openAbout), keyEquivalent: "")
         aboutItem.target = self
         newMenu.addItem(aboutItem)
-        newMenu.addItem(.separator())
-        let settingsItem = NSMenuItem(title: LocalizationManager.shared.t("menu.settings"), action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.keyEquivalentModifierMask = [.command]
-        settingsItem.target = self
-        newMenu.addItem(settingsItem)
         newMenu.addItem(.separator())
         let quitItem = NSMenuItem(title: LocalizationManager.shared.t("menu.quit"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self

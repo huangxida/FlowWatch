@@ -21,39 +21,7 @@ struct DailyTrafficView: View {
             Text(l10n.t("daily.title"))
                 .font(.headline)
 
-            sectionHeader("daily.section.last7days")
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
-                GridRow {
-                    metricColumn(
-                        titleKey: "daily.download",
-                        value: ByteAxisFormatter.formatMB(viewModel.totalDownloadMB),
-                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.averageDownloadMB))
-                    )
-                    metricColumn(
-                        titleKey: "daily.upload",
-                        value: ByteAxisFormatter.formatMB(viewModel.totalUploadMB),
-                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.averageUploadMB))
-                    )
-                }
-            }
-
-            Divider()
-
-            sectionHeader("daily.section.allHistory")
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
-                GridRow {
-                    metricColumn(
-                        titleKey: "daily.download",
-                        value: ByteAxisFormatter.formatMB(viewModel.allTimeDownloadMB),
-                        subtitle: nil
-                    )
-                    metricColumn(
-                        titleKey: "daily.upload",
-                        value: ByteAxisFormatter.formatMB(viewModel.allTimeUploadMB),
-                        subtitle: nil
-                    )
-                }
-            }
+            summarySection
 
             Divider()
 
@@ -68,7 +36,7 @@ struct DailyTrafficView: View {
             }
         }
         .padding(16)
-        .padding(.top, 6)
+        .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
@@ -78,6 +46,44 @@ struct DailyTrafficView: View {
         Text(l10n.t(key))
             .font(.caption)
             .foregroundColor(.secondary)
+    }
+
+    private var summarySection: some View {
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("daily.section.last7days")
+                HStack(alignment: .top, spacing: 14) {
+                    metricColumn(
+                        titleKey: "daily.download",
+                        value: ByteAxisFormatter.formatMB(viewModel.totalDownloadMB),
+                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.averageDownloadMB))
+                    )
+                    metricColumn(
+                        titleKey: "daily.upload",
+                        value: ByteAxisFormatter.formatMB(viewModel.totalUploadMB),
+                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.averageUploadMB))
+                    )
+                }
+            }
+
+            Spacer(minLength: 24)
+
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("daily.section.allHistory")
+                HStack(alignment: .top, spacing: 14) {
+                    metricColumn(
+                        titleKey: "daily.download",
+                        value: ByteAxisFormatter.formatMB(viewModel.allTimeDownloadMB),
+                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.allTimeAverageDownloadMB))
+                    )
+                    metricColumn(
+                        titleKey: "daily.upload",
+                        value: ByteAxisFormatter.formatMB(viewModel.allTimeUploadMB),
+                        subtitle: String(format: l10n.t("daily.avg"), ByteAxisFormatter.formatMB(viewModel.allTimeAverageUploadMB))
+                    )
+                }
+            }
+        }
     }
 
     private func metricColumn(titleKey: String, value: String, subtitle: String?) -> some View {
@@ -146,8 +152,7 @@ struct DailyTrafficView: View {
                 }
             }
         } label: {
-            Label(l10n.t("daily.fun.title"), systemImage: "sparkles")
-                .font(.subheadline)
+            EmptyView()
         }
     }
 
@@ -158,14 +163,19 @@ struct DailyTrafficView: View {
         systemImage: String,
         tint: Color
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let rangeText = l10n.t("daily.fun.range.last7days")
+        let showRangeInTitle = title == l10n.t("daily.fun.activeDays.title")
+            || title == l10n.t("daily.fun.persona.title")
+        let displayTitle = showRangeInTitle ? "\(title) · \(rangeText)" : title
+
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: systemImage)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(tint)
                     .frame(width: 20, height: 20)
                     .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Text(title)
+                Text(displayTitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
@@ -180,10 +190,25 @@ struct DailyTrafficView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+            } else {
+                Text(" ")
+                    .font(.system(size: 10))
+                    .hidden()
+            }
+            if !showRangeInTitle,
+               title != l10n.t("daily.fun.peak.title"),
+               subtitle?.contains(rangeText) != true {
+                Text(rangeText)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(" ")
+                    .font(.system(size: 10))
+                    .hidden()
             }
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 92, alignment: .topLeading)
         .background(Color(.controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -645,6 +670,16 @@ final class DailyTrafficViewModel: ObservableObject {
 
     var allTimeUploadMB: Double {
         allRecords.reduce(0) { $0 + Double($1.uploadBytes) / (1024 * 1024) }
+    }
+
+    var allTimeAverageDownloadMB: Double {
+        guard !allRecords.isEmpty else { return 0 }
+        return allTimeDownloadMB / Double(allRecords.count)
+    }
+
+    var allTimeAverageUploadMB: Double {
+        guard !allRecords.isEmpty else { return 0 }
+        return allTimeUploadMB / Double(allRecords.count)
     }
 
     init(storage: DailyTrafficStorage = .shared) {

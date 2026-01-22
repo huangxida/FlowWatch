@@ -8,12 +8,10 @@
 import AppKit
 import Combine
 import Foundation
-#if canImport(Sparkle)
-import Sparkle
-#endif
 
 @MainActor
 final class UpdateManager: NSObject, ObservableObject {
+    static let shared = UpdateManager()
     enum UpdateStatus: Equatable {
         case idle
         case checking
@@ -27,18 +25,17 @@ final class UpdateManager: NSObject, ObservableObject {
 
     private let installMethod: InstallMethod
     private let lastCheckKey = "update.lastCheckTimestamp"
+    private let autoCheckEnabledKey = "update.autoCheckEnabled"
     private let autoCheckInterval: TimeInterval = 60 * 60 * 24
     private let homebrewFormula = "flowwatch"
-    private let appcastURLString = "https://raw.githubusercontent.com/huangxida/FlowWatch/feature/about-update/appcast.xml"
-
-    #if canImport(Sparkle)
-    private var updaterController: SPUStandardUpdaterController?
-    #endif
+    private let notificationCenter = UpdateNotificationCenter.shared
+    private static let githubReleaseAPIURL = URL(string: "https://api.github.com/repos/huangxida/FlowWatch/releases/latest")
+    private static let githubReleasePageURL = "https://github.com/huangxida/FlowWatch/releases/latest"
+    private static let githubUserAgent = "FlowWatch"
 
     init(installMethod: InstallMethod = InstallMethodDetector.detect()) {
         self.installMethod = installMethod
         super.init()
-        configureSparkleIfNeeded()
     }
 
     var canCheckForUpdates: Bool {
@@ -46,11 +43,7 @@ final class UpdateManager: NSObject, ObservableObject {
         case .homebrew:
             return status != .updating
         case .dmg:
-            #if canImport(Sparkle)
-            return updaterController?.updater.canCheckForUpdates ?? false
-            #else
-            return false
-            #endif
+            return status != .updating
         }
     }
 
@@ -60,7 +53,7 @@ final class UpdateManager: NSObject, ObservableObject {
         case .homebrew:
             checkHomebrew(userInitiated: userInitiated)
         case .dmg:
-            checkSparkle(userInitiated: userInitiated)
+            checkGitHubRelease(userInitiated: userInitiated)
         }
     }
 
@@ -69,34 +62,44 @@ final class UpdateManager: NSObject, ObservableObject {
         checkForUpdates(userInitiated: false)
     }
 
-    private func configureSparkleIfNeeded() {
-        guard installMethod == .dmg else { return }
-        #if canImport(Sparkle)
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil)
-        #endif
-    }
-
-    private func checkSparkle(userInitiated: Bool) {
-        #if canImport(Sparkle)
-        guard let updaterController else {
-            if userInitiated {
-                presentDmgUnavailableAlert()
+    private func checkGitHubRelease(userInitiated _: Bool) {
+        status = .checking
+        let currentVersion = AppVersion.shortVersion
+        Task.detached { [weak self] in
+            do {
+                let release = try await Self.fetchLatestRelease()
+                let latestVersion = Self.normalizedVersion(release.tagName)
+                guard !latestVersion.isEmpty else {
+                    throw GitHubUpdateError.invalidRelease
+                }
+                let isNewer = Self.compareVersions(latestVersion, currentVersion) == .orderedDescending
+                await MainActor.run {
+                    guard let self else { return }
+                    if isNewer {
+                        self.status = .updateAvailable(version: latestVersion)
+                        self.notifyGitHubUpdateAvailable(
+                            version: latestVersion,
+                            releaseURLString: release.htmlURL,
+                            downloadURLString: release.dmgDownloadURL
+                        )
+                    } else {
+                        self.status = .upToDate
+                        self.notifyUpToDate()
+                        self.status = .idle
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    guard let self else { return }
+                    self.status = .failed(message: self.message(for: error))
+                    self.notifyCheckFailed(message: self.message(for: error))
+                    self.status = .idle
+                }
             }
-            return
         }
-        if userInitiated {
-            updaterController.checkForUpdates(nil)
-        } else {
-            updaterController.updater.checkForUpdatesInBackground()
-        }
-        #else
-        if userInitiated {
-            presentDmgUnavailableAlert()
-        }
-        #endif
     }
 
-    private func checkHomebrew(userInitiated: Bool) {
+    private func checkHomebrew(userInitiated _: Bool) {
         status = .checking
         let currentVersion = AppVersion.shortVersion
         let formula = homebrewFormula
@@ -108,12 +111,15 @@ final class UpdateManager: NSObject, ObservableObject {
                     guard let self else { return }
                     if isNewer {
                         self.status = .updateAvailable(version: latestVersion)
-                        self.presentUpdateAvailableAlert(version: latestVersion)
+                        self.notifyUpdateAvailable(
+                            version: latestVersion,
+                            messageKey: "update.available.message",
+                        ) { [weak self] in
+                            self?.performHomebrewUpgrade()
+                        }
                     } else {
                         self.status = .upToDate
-                        if userInitiated {
-                            self.presentUpToDateAlert()
-                        }
+                        self.notifyUpToDate()
                         self.status = .idle
                     }
                 }
@@ -121,44 +127,33 @@ final class UpdateManager: NSObject, ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     self.status = .failed(message: self.message(for: error))
-                    if userInitiated {
-                        self.presentCheckFailedAlert(message: self.message(for: error))
-                    }
+                    self.notifyCheckFailed(message: self.message(for: error))
                     self.status = .idle
                 }
             }
         }
     }
 
-    private func presentUpToDateAlert() {
-        let alert = NSAlert()
-        alert.messageText = LocalizationManager.shared.t("update.check.upToDate.title")
-        alert.informativeText = LocalizationManager.shared.t("update.check.upToDate.message")
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: LocalizationManager.shared.t("common.ok"))
-        activateAppAndShow(alert: alert)
+    private func notifyUpToDate() {
+        notificationCenter.post(
+            title: LocalizationManager.shared.t("update.check.upToDate.title"),
+            body: LocalizationManager.shared.t("update.check.upToDate.message")
+        )
     }
 
-    private func presentCheckFailedAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = LocalizationManager.shared.t("update.check.failed.title")
-        alert.informativeText = String(format: LocalizationManager.shared.t("update.check.failed.message"), message)
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: LocalizationManager.shared.t("common.ok"))
-        activateAppAndShow(alert: alert)
+    private func notifyCheckFailed(message: String) {
+        notificationCenter.post(
+            title: LocalizationManager.shared.t("update.check.failed.title"),
+            body: String(format: LocalizationManager.shared.t("update.check.failed.message"), message)
+        )
     }
 
-    private func presentUpdateAvailableAlert(version: String) {
-        let alert = NSAlert()
-        alert.messageText = String(format: LocalizationManager.shared.t("update.available.title"), version)
-        alert.informativeText = LocalizationManager.shared.t("update.available.message")
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: LocalizationManager.shared.t("update.available.updateNow"))
-        alert.addButton(withTitle: LocalizationManager.shared.t("update.available.later"))
-        let response = activateAppAndShow(alert: alert)
-        if response == .alertFirstButtonReturn {
-            performHomebrewUpgrade()
-        }
+    private func notifyUpdateAvailable(version: String, messageKey: String, primaryAction: @escaping () -> Void) {
+        notificationCenter.post(
+            title: String(format: LocalizationManager.shared.t("update.available.title"), version),
+            body: LocalizationManager.shared.t(messageKey),
+            action: primaryAction
+        )
     }
 
     private func performHomebrewUpgrade() {
@@ -170,54 +165,44 @@ final class UpdateManager: NSObject, ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     self.status = .idle
-                    self.presentUpgradeSuccessAlert()
+                    self.notifyUpgradeSuccess()
                 }
             } catch {
                 await MainActor.run {
                     guard let self else { return }
                     self.status = .idle
-                    self.presentUpgradeFailedAlert(message: self.message(for: error))
+                    self.notifyUpgradeFailed(message: self.message(for: error))
                 }
             }
         }
     }
 
-    private func presentUpgradeSuccessAlert() {
-        let alert = NSAlert()
-        alert.messageText = LocalizationManager.shared.t("update.upgrade.success.title")
-        alert.informativeText = LocalizationManager.shared.t("update.upgrade.success.message")
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: LocalizationManager.shared.t("common.ok"))
-        activateAppAndShow(alert: alert)
+    private func notifyUpgradeSuccess() {
+        notificationCenter.post(
+            title: LocalizationManager.shared.t("update.upgrade.success.title"),
+            body: LocalizationManager.shared.t("update.upgrade.success.message")
+        )
     }
 
-    private func presentUpgradeFailedAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = LocalizationManager.shared.t("update.upgrade.failed.title")
-        alert.informativeText = String(format: LocalizationManager.shared.t("update.upgrade.failed.message"), message)
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: LocalizationManager.shared.t("common.ok"))
-        activateAppAndShow(alert: alert)
+    private func notifyUpgradeFailed(message: String) {
+        notificationCenter.post(
+            title: LocalizationManager.shared.t("update.upgrade.failed.title"),
+            body: String(format: LocalizationManager.shared.t("update.upgrade.failed.message"), message)
+        )
     }
 
-    private func presentDmgUnavailableAlert() {
-        let alert = NSAlert()
-        alert.messageText = LocalizationManager.shared.t("update.check.failed.title")
-        alert.informativeText = LocalizationManager.shared.t("update.dmg.unavailable")
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: LocalizationManager.shared.t("update.openDownload"))
-        alert.addButton(withTitle: LocalizationManager.shared.t("common.cancel"))
-        let response = activateAppAndShow(alert: alert)
-        if response == .alertFirstButtonReturn,
-           let url = URL(string: "https://github.com/huangxida/FlowWatch/releases/latest") {
-            NSWorkspace.shared.open(url)
+    private func notifyGitHubUpdateAvailable(version: String, releaseURLString: String?, downloadURLString: String?) {
+        let messageKey = "update.available.message.dmg"
+        notifyUpdateAvailable(version: version, messageKey: messageKey) { [weak self] in
+            self?.openUpdateURL(releaseURLString: releaseURLString, downloadURLString: downloadURLString)
         }
     }
 
-    @discardableResult
-    private func activateAppAndShow(alert: NSAlert) -> NSApplication.ModalResponse {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        return alert.runModal()
+    private func openUpdateURL(releaseURLString: String?, downloadURLString _: String?) {
+        let fallback = Self.githubReleasePageURL
+        let urlString = releaseURLString ?? fallback
+        guard let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func recordLastCheck() {
@@ -225,6 +210,7 @@ final class UpdateManager: NSObject, ObservableObject {
     }
 
     private func shouldAutoCheck() -> Bool {
+        guard isAutoCheckEnabled() else { return false }
         let lastTimestamp = UserDefaults.standard.double(forKey: lastCheckKey)
         if lastTimestamp <= 0 {
             return true
@@ -233,7 +219,92 @@ final class UpdateManager: NSObject, ObservableObject {
         return Date().timeIntervalSince(lastDate) >= autoCheckInterval
     }
 
+    private func isAutoCheckEnabled() -> Bool {
+        if UserDefaults.standard.object(forKey: autoCheckEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: autoCheckEnabledKey)
+    }
+
+    nonisolated private static func fetchLatestRelease() async throws -> GitHubRelease {
+        do {
+            return try await fetchLatestReleaseFromAPI()
+        } catch {
+            return try await fetchLatestReleaseFromRedirect()
+        }
+    }
+
+    nonisolated private static func fetchLatestReleaseFromAPI() async throws -> GitHubRelease {
+        guard let url = githubReleaseAPIURL else {
+            throw GitHubUpdateError.invalidRelease
+        }
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue(githubUserAgent, forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubUpdateError.invalidRelease
+        }
+        if httpResponse.statusCode == 403,
+           httpResponse.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0" {
+            throw GitHubUpdateError.rateLimited
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw GitHubUpdateError.invalidRelease
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(GitHubRelease.self, from: data)
+    }
+
+    nonisolated private static func fetchLatestReleaseFromRedirect() async throws -> GitHubRelease {
+        guard let url = URL(string: githubReleasePageURL) else {
+            throw GitHubUpdateError.invalidRelease
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let finalURL = response.url else {
+            throw GitHubUpdateError.invalidRelease
+        }
+        let tag = finalURL.lastPathComponent
+        guard !tag.isEmpty else {
+            throw GitHubUpdateError.invalidRelease
+        }
+        let htmlURL = "https://github.com/huangxida/FlowWatch/releases/tag/\(tag)"
+        let downloadURL = "https://github.com/huangxida/FlowWatch/releases/download/\(tag)/FlowWatch.dmg"
+        let asset = GitHubAsset(name: "FlowWatch.dmg", browserDownloadURL: downloadURL)
+        return GitHubRelease(tagName: tag, htmlURL: htmlURL, assets: [asset])
+    }
+
+    nonisolated private static func normalizedVersion(_ version: String) -> String {
+        let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("v") || trimmed.hasPrefix("V") {
+            return String(trimmed.dropFirst())
+        }
+        return trimmed
+    }
+
     private func message(for error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost, .timedOut:
+                return LocalizationManager.shared.t("update.network.error")
+            default:
+                break
+            }
+        }
+        if let githubError = error as? GitHubUpdateError {
+            switch githubError {
+            case .invalidRelease:
+                return LocalizationManager.shared.t("update.github.invalidRelease")
+            case .rateLimited:
+                return LocalizationManager.shared.t("update.github.rateLimited")
+            }
+        }
         if let brewError = error as? HomebrewError {
             switch brewError {
             case .notFound:
@@ -340,6 +411,48 @@ private enum HomebrewError: Error {
     case commandFailed(String)
 }
 
+private enum GitHubUpdateError: Error {
+    case invalidRelease
+    case rateLimited
+}
+
+private struct GitHubRelease: Decodable {
+    let tagName: String
+    let htmlURL: String
+    let assets: [GitHubAsset]
+
+    init(tagName: String, htmlURL: String, assets: [GitHubAsset]) {
+        self.tagName = tagName
+        self.htmlURL = htmlURL
+        self.assets = assets
+    }
+
+    var dmgDownloadURL: String? {
+        assets.first { $0.name.lowercased().hasSuffix(".dmg") }?.browserDownloadURL
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlURL = "html_url"
+        case assets
+    }
+}
+
+private struct GitHubAsset: Decodable {
+    let name: String
+    let browserDownloadURL: String
+
+    init(name: String, browserDownloadURL: String) {
+        self.name = name
+        self.browserDownloadURL = browserDownloadURL
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case browserDownloadURL = "browser_download_url"
+    }
+}
+
 private struct BrewInfoResponse: Decodable {
     let formulae: [BrewFormula]
     let casks: [BrewCask]
@@ -356,11 +469,3 @@ private struct BrewVersions: Decodable {
 private struct BrewCask: Decodable {
     let version: String?
 }
-
-#if canImport(Sparkle)
-extension UpdateManager: SPUUpdaterDelegate {
-    func feedURLString(for updater: SPUUpdater) -> String? {
-        appcastURLString
-    }
-}
-#endif
