@@ -17,10 +17,15 @@
 - No account is required, and the app does not upload or sync your data.
 
 ## Install
+### Homebrew
 ```bash
 brew tap huangxida/flowwatch
 brew install --cask flowwatch
 ```
+
+### Download from Releases
+Download the latest DMG from GitHub Releases:
+[FlowWatch Releases](https://github.com/huangxida/FlowWatch/releases)
 
 ## Screenshots
 | Status bar: speed | Status bar: today | Status bar: speed + today |
