@@ -10,6 +10,15 @@ DIST_DIR="$ROOT_DIR/dist"
 ARCHIVE_PATH="$DIST_DIR/FlowWatch.xcarchive"
 EXPORT_DIR="$DIST_DIR/export"
 EXPORT_OPTIONS_PLIST="$DIST_DIR/ExportOptions.plist"
+EXTRA_BUILD_SETTINGS=()
+
+if [[ -n "${MARKETING_VERSION:-}" ]]; then
+  EXTRA_BUILD_SETTINGS+=("MARKETING_VERSION=$MARKETING_VERSION")
+fi
+
+if [[ -n "${CURRENT_PROJECT_VERSION:-}" ]]; then
+  EXTRA_BUILD_SETTINGS+=("CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION")
+fi
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
   echo "未找到 xcodebuild。请安装 Xcode（建议 Xcode 15+）后重试。"
@@ -63,6 +72,7 @@ xcodebuild \
   -configuration "$CONFIGURATION" \
   -destination "platform=macOS" \
   -archivePath "$ARCHIVE_PATH" \
+  "${EXTRA_BUILD_SETTINGS[@]}" \
   archive
 
 xcodebuild \

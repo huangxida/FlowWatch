@@ -5,6 +5,7 @@ struct MenuStatusLabel: View {
     @ObservedObject var monitor: NetworkUsageMonitor
     @AppStorage("menuDisplayMode") private var displayModeRaw: String = FlowWatchApp.MenuDisplayMode.icon.rawValue
     @AppStorage("maxColorRateMbps") private var maxColorRateMbps: Double = 100
+    @AppStorage("colorRatePercent") private var colorRatePercent: Double = 100
     @EnvironmentObject private var l10n: LocalizationManager
 
     private var displayMode: FlowWatchApp.MenuDisplayMode {
@@ -97,7 +98,8 @@ struct MenuStatusLabel: View {
 
     private func colorForSpeed(_ bytesPerSecond: Double) -> NSColor {
         let mbps = max(0, bytesPerSecond) * 8 / 1_000_000
-        let maxRate = max(0, min(maxColorRateMbps, 100))
+        let percent = max(0, min(colorRatePercent, 100))
+        let maxRate = max(0, maxColorRateMbps) * percent / 100
         guard maxRate > 0 else {
             return normalizedColor(NSColor.white)
         }
