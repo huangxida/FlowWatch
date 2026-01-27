@@ -5,9 +5,39 @@ private var crashLogFileDescriptor: Int32 = -1
 
 private func crashSignalHandler(_ signalCode: Int32) {
     let fd = crashLogFileDescriptor >= 0 ? crashLogFileDescriptor : STDERR_FILENO
-    let message = "Fatal signal: \(signalCode)\n"
-    message.withCString { pointer in
-        _ = write(fd, pointer, strlen(pointer))
+    let prefix: [UInt8] = Array("Fatal signal: ".utf8)
+    _ = prefix.withUnsafeBytes { rawBuffer in
+        write(fd, rawBuffer.baseAddress, rawBuffer.count)
+    }
+    var number = signalCode
+    var digits = [UInt8](repeating: 0, count: 12)
+    var index = digits.count
+    var value = number
+    if value == 0 {
+        index -= 1
+        digits[index] = UInt8(ascii: "0")
+    } else {
+        let isNegative = value < 0
+        if isNegative {
+            value = -value
+        }
+        while value > 0, index > 0 {
+            let digit = value % 10
+            index -= 1
+            digits[index] = UInt8(UInt8(digit) + UInt8(ascii: "0"))
+            value /= 10
+        }
+        if isNegative, index > 0 {
+            index -= 1
+            digits[index] = UInt8(ascii: "-")
+        }
+    }
+    _ = digits[index...].withUnsafeBytes { rawBuffer in
+        write(fd, rawBuffer.baseAddress, rawBuffer.count)
+    }
+    let newline: UInt8 = UInt8(ascii: "\n")
+    _ = withUnsafeBytes(of: newline) { rawBuffer in
+        write(fd, rawBuffer.baseAddress, rawBuffer.count)
     }
     _ = fsync(fd)
     Darwin.signal(signalCode, SIG_DFL)
