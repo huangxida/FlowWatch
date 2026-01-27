@@ -16,6 +16,7 @@ final class UpdateNotificationCenter: NSObject, UNUserNotificationCenterDelegate
 
     func post(title: String, body: String, action: (() -> Void)? = nil) {
         configureIfNeeded()
+        LogManager.shared.log("Post notification: \(title)")
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

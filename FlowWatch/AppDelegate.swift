@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
+        LogManager.shared.log("Application did finish launching")
+        LogManager.shared.installCrashHandlersIfNeeded()
         let monitor = NetworkUsageMonitor()
         self.monitor = monitor
         self.statusBarController = StatusBarController(monitor: monitor)
@@ -15,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        LogManager.shared.log("Application will terminate")
         monitor?.saveTrafficData()
     }
 }
-

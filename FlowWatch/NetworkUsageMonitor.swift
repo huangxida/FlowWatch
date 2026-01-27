@@ -33,6 +33,7 @@ final class NetworkUsageMonitor: ObservableObject {
         // 将累计流量初始化为今日已用流量
         totalDownloaded = todayDownloaded
         totalUploaded = todayUploaded
+        LogManager.shared.log("NetworkUsageMonitor initialized (sampleInterval=\(sampleInterval))")
         startTimer()
         startDayChangeTimer()
     }
@@ -44,11 +45,13 @@ final class NetworkUsageMonitor: ObservableObject {
 
     func toggle() {
         isActive.toggle()
+        LogManager.shared.log("Network monitoring toggled: \(isActive)")
     }
 
     func updateInterval(to interval: TimeInterval) {
         let clamped = min(max(interval, 1.0), 10.0)
         guard clamped != sampleInterval else { return }
+        LogManager.shared.log("Sample interval updated: \(sampleInterval) -> \(clamped)")
         sampleInterval = clamped
         restartTimer()
     }
@@ -203,6 +206,7 @@ final class NetworkUsageMonitor: ObservableObject {
     }
 
     func resetTotals() {
+        LogManager.shared.log("Reset totals")
         DispatchQueue.main.async {
             self.totalDownloaded = 0
             self.totalUploaded = 0
@@ -212,6 +216,7 @@ final class NetworkUsageMonitor: ObservableObject {
     }
 
     func resetTodayTraffic() {
+        LogManager.shared.log("Reset today traffic")
         DispatchQueue.main.async {
             self.totalDownloaded = 0
             self.totalUploaded = 0
@@ -222,6 +227,7 @@ final class NetworkUsageMonitor: ObservableObject {
     }
 
     func clearAllTrafficHistory() {
+        LogManager.shared.log("Clear all traffic history")
         DailyTrafficStorage.shared.clearAllRecords()
         DispatchQueue.main.async {
             self.totalDownloaded = 0
@@ -264,6 +270,7 @@ final class NetworkUsageMonitor: ObservableObject {
 
         if today > lastRecorded {
             // 新的一天开始了，保存昨天的数据
+            LogManager.shared.log("Day changed, reset daily counters")
             saveTodayTraffic()
 
             // 重置今日流量
@@ -278,6 +285,7 @@ final class NetworkUsageMonitor: ObservableObject {
     }
 
     func saveTrafficData() {
+        LogManager.shared.log("Save traffic data on terminate")
         saveTodayTraffic()
     }
 

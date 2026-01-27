@@ -343,10 +343,12 @@ final class StatusBarController: NSObject, ObservableObject {
     }
 
     private func performResetToday() {
+        LogManager.shared.log("Reset today from status bar")
         monitor.resetTodayTraffic()
     }
 
     private func performResetAllHistory() {
+        LogManager.shared.log("Clear all history from status bar")
         monitor.clearAllTrafficHistory()
     }
 
@@ -366,19 +368,27 @@ final class StatusBarController: NSObject, ObservableObject {
     }
 
     @objc private func openSettings() {
+        LogManager.shared.log("Open settings window")
         SettingsWindowController.shared.show()
     }
 
     @objc private func openAbout() {
+        LogManager.shared.log("Open about window")
         AboutWindowController.shared.show()
     }
 
     @objc private func checkForUpdates() {
+        LogManager.shared.log("Check for updates from status bar")
+        if updateManager.performCachedUpdateAction() {
+            refreshUpdateMenuItem()
+            return
+        }
         updateManager.checkForUpdates(userInitiated: true)
         refreshUpdateMenuItem()
     }
 
     @objc private func quitApp() {
+        LogManager.shared.log("Quit requested from status bar")
         let alert = NSAlert()
         alert.messageText = LocalizationManager.shared.t("quit.confirm.title")
         alert.informativeText = LocalizationManager.shared.t("quit.confirm.message")
@@ -393,9 +403,7 @@ final class StatusBarController: NSObject, ObservableObject {
     }
 
     private func scheduleAutomaticUpdateCheck() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            self?.updateManager.checkForUpdatesIfNeeded()
-        }
+        updateManager.startAutomaticUpdateChecks()
     }
 
     private func refreshUpdateMenuItem() {
@@ -408,31 +416,51 @@ final class StatusBarController: NSObject, ObservableObject {
             && updateManager.status != .updating
 
         if case .updateAvailable = updateManager.status {
-            let baseFont = NSFont.menuFont(ofSize: 0)
-            let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
-            let attributes: [NSAttributedString.Key: Any] = [
-                .foregroundColor: NSColor.labelColor,
-                .font: boldFont
-            ]
-            updateMenuItem.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+            applyUpdateMenuHighlight(to: updateMenuItem, title: title)
+        } else if updateManager.cachedLatestVersion != nil {
+            applyUpdateMenuHighlight(to: updateMenuItem, title: title)
         }
     }
 
+    private func applyUpdateMenuHighlight(to updateMenuItem: NSMenuItem, title: String) {
+        let baseFont = NSFont.menuFont(ofSize: 0)
+        let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.labelColor,
+            .font: boldFont
+            ]
+            updateMenuItem.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+    }
+
     private func updateMenuTitle(for status: UpdateManager.UpdateStatus) -> String {
+        if case .checking = status {
+            return LocalizationManager.shared.t("menu.checkingUpdate")
+        }
+        if case .updating = status {
+            return LocalizationManager.shared.t("menu.updating")
+        }
+        if let version = resolvedCachedVersion(for: status) {
+            return String(format: LocalizationManager.shared.t("menu.updateAvailable"), version)
+        }
         switch status {
         case .idle:
             return LocalizationManager.shared.t("menu.checkUpdate")
-        case .checking:
-            return LocalizationManager.shared.t("menu.checkingUpdate")
-        case .updating:
-            return LocalizationManager.shared.t("menu.updating")
         case .upToDate:
             return LocalizationManager.shared.t("menu.upToDate")
         case .failed:
             return LocalizationManager.shared.t("menu.updateFailed")
         case .updateAvailable(let version):
             return String(format: LocalizationManager.shared.t("menu.updateAvailable"), version)
+        case .checking, .updating:
+            return LocalizationManager.shared.t("menu.checkUpdate")
         }
+    }
+
+    private func resolvedCachedVersion(for status: UpdateManager.UpdateStatus) -> String? {
+        if case .updateAvailable(let version) = status {
+            return version
+        }
+        return updateManager.cachedLatestVersion
     }
     
     private func rebuildMenu() {

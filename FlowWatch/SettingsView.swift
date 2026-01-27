@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ServiceManagement
 
 struct SettingsView: View {
@@ -6,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("maxColorRateMbps") private var maxColorRateMbps: Double = 100
     @AppStorage("colorRatePercent") private var colorRatePercent: Double = 100
     @AppStorage("update.autoCheckEnabled") private var autoCheckEnabled: Bool = true
+    @AppStorage("logging.enabled") private var loggingEnabled: Bool = true
     @ObservedObject private var updateManager = UpdateManager.shared
     @State private var isShowingResetAlert = false
     @State private var resetAlertMode: ResetAlertMode?
@@ -128,6 +130,7 @@ struct SettingsView: View {
                             get: { autoCheckEnabled },
                             set: { newValue in
                                 autoCheckEnabled = newValue
+                                LogManager.shared.log("Auto update check enabled: \(newValue)")
                                 if newValue {
                                     NotificationCenter.default.post(name: .flowWatchCheckForUpdates, object: nil)
                                 }
@@ -138,6 +141,17 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        if let cachedVersion = updateManager.cachedLatestVersion {
+                            Text(String(format: l10n.t("settings.update.available"), cachedVersion))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(String(format: l10n.t("settings.update.lastCheck"), formattedLastCheck()))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(String(format: l10n.t("settings.update.nextCheck"), formattedNextCheck()))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Text(l10n.t("settings.update.hint"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -145,6 +159,36 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } label: {
                 sectionLabel(l10n.t("settings.section.updates"), systemImage: "arrow.triangle.2.circlepath")
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(l10n.t("settings.logging.toggle"), isOn: Binding(
+                        get: { loggingEnabled },
+                        set: { newValue in
+                            loggingEnabled = newValue
+                            LogManager.shared.log("Logging enabled: \(newValue)")
+                        }
+                    ))
+                    Text(l10n.t("settings.logging.hint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        let url = URL(fileURLWithPath: LogManager.shared.logsDirectoryPath)
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                        LogManager.shared.log("Open logs directory from settings")
+                    } label: {
+                        Text(String(format: l10n.t("settings.logging.path"), displayPath(LogManager.shared.logsDirectoryPath)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .buttonStyle(.link)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                sectionLabel(l10n.t("settings.section.logging"), systemImage: "doc.text")
             }
 
             GroupBox {
@@ -167,7 +211,7 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 420, minHeight: 680, alignment: .topLeading)
+        .frame(minWidth: 420, alignment: .topLeading)
         .onAppear {
             refreshLaunchAtLoginState()
             DispatchQueue.main.async {
@@ -257,6 +301,7 @@ struct SettingsView: View {
     private func toggleLaunchAtLogin(to enabled: Bool) {
         do {
             try LaunchAtLoginManager.shared.setEnabled(enabled)
+            LogManager.shared.log("Launch at login set to \(enabled)")
         } catch {
             refreshLaunchAtLoginState()
             if LaunchAtLoginManager.shared.status == .requiresApproval {
@@ -265,6 +310,7 @@ struct SettingsView: View {
             } else {
                 launchAtLoginErrorMessage = String(format: l10n.t("alert.launchAtLogin.failed"), error.localizedDescription)
             }
+            LogManager.shared.log("Failed to set launch at login: \(error)", level: .error)
         }
 
         refreshLaunchAtLoginState()
@@ -303,6 +349,39 @@ struct SettingsView: View {
             Text(title)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func displayPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return path.replacingOccurrences(of: home, with: "~")
+        }
+        return path
+    }
+
+    private func formattedLastCheck() -> String {
+        guard let date = updateManager.lastCheckDate else {
+            return l10n.t("settings.update.never")
+        }
+        return formatDateTime(date)
+    }
+
+    private func formattedNextCheck() -> String {
+        if !autoCheckEnabled {
+            return l10n.t("settings.update.disabled")
+        }
+        guard let date = updateManager.nextCheckDate else {
+            return l10n.t("settings.update.pending")
+        }
+        return formatDateTime(date)
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = l10n.locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

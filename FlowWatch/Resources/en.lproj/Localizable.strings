@@ -10,6 +10,7 @@
 "settings.section.coloring" = "Coloring";
 "settings.section.launch" = "Launch";
 "settings.section.updates" = "Updates";
+"settings.section.logging" = "Logging";
 "settings.section.data" = "Data";
 
 "settings.displayContent.label" = "Status bar display";
@@ -25,6 +26,15 @@
 "settings.launchAtLogin.toggle" = "Launch at login";
 "settings.update.autoCheck" = "Automatically check for updates";
 "settings.update.hint" = "Only affects automatic checks. Manual checks still work.";
+"settings.logging.toggle" = "Log to file";
+"settings.logging.hint" = "Logs are saved by date and kept for the last 7 days.";
+"settings.logging.path" = "Log location: %@";
+"settings.update.available" = "Update available: %@";
+"settings.update.lastCheck" = "Last check: %@";
+"settings.update.nextCheck" = "Next check: %@";
+"settings.update.never" = "Never";
+"settings.update.disabled" = "Disabled";
+"settings.update.pending" = "Not scheduled yet";
 "settings.requires.macos13" = "Requires macOS 13.0+";
 
 "settings.data.resetToday" = "Reset today";
