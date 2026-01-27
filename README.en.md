@@ -10,10 +10,13 @@
 - Real-time upload/download speed in the menu bar
 - Today/total traffic stats and charts (Charts, macOS 13+)
 - Custom sampling interval and display style
+- Automatic update checks with last/next check time
+- Optional file logging (daily logs, kept for 7 days)
 
 ## Data & Privacy
 - Traffic stats are calculated locally from system network interface counters; no packet content is captured.
 - Settings and daily totals are stored on your device only (UserDefaults).
+- Logs (if enabled) are written locally and never uploaded or synced.
 - No account is required, and the app does not upload or sync your data.
 
 ## Install
