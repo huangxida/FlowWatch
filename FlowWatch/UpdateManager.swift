@@ -22,20 +22,35 @@ final class UpdateManager: NSObject, ObservableObject {
     }
 
     @Published private(set) var status: UpdateStatus = .idle
+    @Published private(set) var lastCheckDate: Date?
+    @Published private(set) var nextCheckDate: Date?
+    @Published private(set) var cachedLatestVersion: String?
 
     private let installMethod: InstallMethod
     private let lastCheckKey = "update.lastCheckTimestamp"
     private let autoCheckEnabledKey = "update.autoCheckEnabled"
+    private let cachedLatestVersionKey = "update.cachedLatestVersion"
+    private let cachedReleaseURLKey = "update.cachedReleaseURL"
+    private let cachedDownloadURLKey = "update.cachedDownloadURL"
     private let autoCheckInterval: TimeInterval = 60 * 60 * 24
+    private let initialAutoCheckDelay: TimeInterval = 5
     private let homebrewFormula = "flowwatch"
     private let notificationCenter = UpdateNotificationCenter.shared
     private static let githubReleaseAPIURL = URL(string: "https://api.github.com/repos/huangxida/FlowWatch/releases/latest")
     private static let githubReleasePageURL = "https://github.com/huangxida/FlowWatch/releases/latest"
     private static let githubUserAgent = "FlowWatch"
+    private var autoCheckTimer: Timer?
+    private var cachedReleaseURL: String?
+    private var cachedDownloadURL: String?
 
     init(installMethod: InstallMethod = InstallMethodDetector.detect()) {
         self.installMethod = installMethod
         super.init()
+        loadLastCheckDate()
+        loadCachedLatestVersion()
+        clearCachedVersionIfNeeded()
+        scheduleAutoCheckTimer()
+        NotificationCenter.default.addObserver(self, selector: #selector(handleUserDefaultsChanged), name: UserDefaults.didChangeNotification, object: nil)
     }
 
     var canCheckForUpdates: Bool {
@@ -48,6 +63,7 @@ final class UpdateManager: NSObject, ObservableObject {
     }
 
     func checkForUpdates(userInitiated: Bool) {
+        LogManager.shared.log("Check for updates (userInitiated=\(userInitiated))")
         recordLastCheck()
         switch installMethod {
         case .homebrew:
@@ -62,9 +78,27 @@ final class UpdateManager: NSObject, ObservableObject {
         checkForUpdates(userInitiated: false)
     }
 
-    private func checkGitHubRelease(userInitiated _: Bool) {
+    func startAutomaticUpdateChecks() {
+        scheduleAutoCheckTimer()
+    }
+
+    func performCachedUpdateAction() -> Bool {
+        guard cachedLatestVersion != nil else { return false }
+        guard canCheckForUpdates, status != .checking else { return false }
+        LogManager.shared.log("Perform cached update action (installMethod=\(installMethod))")
+        switch installMethod {
+        case .homebrew:
+            performHomebrewUpgrade()
+        case .dmg:
+            openUpdateURL(releaseURLString: cachedReleaseURL, downloadURLString: cachedDownloadURL)
+        }
+        return true
+    }
+
+    private func checkGitHubRelease(userInitiated: Bool) {
         status = .checking
         let currentVersion = AppVersion.shortVersion
+        LogManager.shared.log("Checking GitHub release (currentVersion=\(currentVersion), userInitiated=\(userInitiated))")
         Task.detached { [weak self] in
             do {
                 let release = try await Self.fetchLatestRelease()
@@ -76,15 +110,28 @@ final class UpdateManager: NSObject, ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     if isNewer {
-                        self.status = .updateAvailable(version: latestVersion)
-                        self.notifyGitHubUpdateAvailable(
+                        let shouldNotify = self.cachedLatestVersion != latestVersion
+                        self.storeCachedLatestRelease(
                             version: latestVersion,
-                            releaseURLString: release.htmlURL,
-                            downloadURLString: release.dmgDownloadURL
+                            releaseURL: release.htmlURL,
+                            downloadURL: release.dmgDownloadURL
                         )
+                        LogManager.shared.log("GitHub release update available: \(latestVersion)")
+                        self.status = .updateAvailable(version: latestVersion)
+                        if shouldNotify {
+                            self.notifyGitHubUpdateAvailable(
+                                version: latestVersion,
+                                releaseURLString: release.htmlURL,
+                                downloadURLString: release.dmgDownloadURL
+                            )
+                        }
                     } else {
+                        self.storeCachedLatestRelease(version: nil, releaseURL: nil, downloadURL: nil)
                         self.status = .upToDate
-                        self.notifyUpToDate()
+                        LogManager.shared.log("GitHub release is up to date")
+                        if userInitiated {
+                            self.notifyUpToDate()
+                        }
                         self.status = .idle
                     }
                 }
@@ -93,16 +140,18 @@ final class UpdateManager: NSObject, ObservableObject {
                     guard let self else { return }
                     self.status = .failed(message: self.message(for: error))
                     self.notifyCheckFailed(message: self.message(for: error))
+                    LogManager.shared.log("GitHub update check failed: \(error)", level: .error)
                     self.status = .idle
                 }
             }
         }
     }
 
-    private func checkHomebrew(userInitiated _: Bool) {
+    private func checkHomebrew(userInitiated: Bool) {
         status = .checking
         let currentVersion = AppVersion.shortVersion
         let formula = homebrewFormula
+        LogManager.shared.log("Checking Homebrew updates (currentVersion=\(currentVersion), userInitiated=\(userInitiated))")
         Task.detached { [weak self] in
             do {
                 let latestVersion = try Self.fetchHomebrewVersion(formula: formula)
@@ -110,16 +159,25 @@ final class UpdateManager: NSObject, ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     if isNewer {
+                        let shouldNotify = self.cachedLatestVersion != latestVersion
+                        self.storeCachedLatestRelease(version: latestVersion, releaseURL: nil, downloadURL: nil)
+                        LogManager.shared.log("Homebrew update available: \(latestVersion)")
                         self.status = .updateAvailable(version: latestVersion)
-                        self.notifyUpdateAvailable(
-                            version: latestVersion,
-                            messageKey: "update.available.message",
-                        ) { [weak self] in
-                            self?.performHomebrewUpgrade()
+                        if shouldNotify {
+                            self.notifyUpdateAvailable(
+                                version: latestVersion,
+                                messageKey: "update.available.message",
+                            ) { [weak self] in
+                                self?.performHomebrewUpgrade()
+                            }
                         }
                     } else {
+                        self.storeCachedLatestRelease(version: nil, releaseURL: nil, downloadURL: nil)
                         self.status = .upToDate
-                        self.notifyUpToDate()
+                        LogManager.shared.log("Homebrew is up to date")
+                        if userInitiated {
+                            self.notifyUpToDate()
+                        }
                         self.status = .idle
                     }
                 }
@@ -128,6 +186,7 @@ final class UpdateManager: NSObject, ObservableObject {
                     guard let self else { return }
                     self.status = .failed(message: self.message(for: error))
                     self.notifyCheckFailed(message: self.message(for: error))
+                    LogManager.shared.log("Homebrew update check failed: \(error)", level: .error)
                     self.status = .idle
                 }
             }
@@ -159,18 +218,22 @@ final class UpdateManager: NSObject, ObservableObject {
     private func performHomebrewUpgrade() {
         status = .updating
         let formula = homebrewFormula
+        LogManager.shared.log("Homebrew upgrade started (\(formula))")
         Task.detached { [weak self] in
             do {
                 _ = try Self.runBrew(arguments: ["upgrade", formula])
                 await MainActor.run {
                     guard let self else { return }
+                    self.storeCachedLatestRelease(version: nil, releaseURL: nil, downloadURL: nil)
                     self.status = .idle
+                    LogManager.shared.log("Homebrew upgrade finished")
                     self.notifyUpgradeSuccess()
                 }
             } catch {
                 await MainActor.run {
                     guard let self else { return }
                     self.status = .idle
+                    LogManager.shared.log("Homebrew upgrade failed: \(error)", level: .error)
                     self.notifyUpgradeFailed(message: self.message(for: error))
                 }
             }
@@ -194,6 +257,7 @@ final class UpdateManager: NSObject, ObservableObject {
     private func notifyGitHubUpdateAvailable(version: String, releaseURLString: String?, downloadURLString: String?) {
         let messageKey = "update.available.message.dmg"
         notifyUpdateAvailable(version: version, messageKey: messageKey) { [weak self] in
+            LogManager.shared.log("Open GitHub release page (version=\(version))")
             self?.openUpdateURL(releaseURLString: releaseURLString, downloadURLString: downloadURLString)
         }
     }
@@ -206,7 +270,10 @@ final class UpdateManager: NSObject, ObservableObject {
     }
 
     private func recordLastCheck() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
+        let now = Date()
+        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: lastCheckKey)
+        lastCheckDate = now
+        scheduleAutoCheckTimer()
     }
 
     private func shouldAutoCheck() -> Bool {
@@ -225,6 +292,122 @@ final class UpdateManager: NSObject, ObservableObject {
         }
         return UserDefaults.standard.bool(forKey: autoCheckEnabledKey)
     }
+
+    private func loadLastCheckDate() {
+        let timestamp = UserDefaults.standard.double(forKey: lastCheckKey)
+        if timestamp > 0 {
+            lastCheckDate = Date(timeIntervalSince1970: timestamp)
+        } else {
+            lastCheckDate = nil
+        }
+    }
+
+    private func loadCachedLatestVersion() {
+        cachedLatestVersion = UserDefaults.standard.string(forKey: cachedLatestVersionKey)
+        cachedReleaseURL = UserDefaults.standard.string(forKey: cachedReleaseURLKey)
+        cachedDownloadURL = UserDefaults.standard.string(forKey: cachedDownloadURLKey)
+    }
+
+    private func storeCachedLatestRelease(version: String?, releaseURL: String?, downloadURL: String?) {
+        if let version {
+            UserDefaults.standard.set(version, forKey: cachedLatestVersionKey)
+            if let releaseURL {
+                UserDefaults.standard.set(releaseURL, forKey: cachedReleaseURLKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: cachedReleaseURLKey)
+            }
+            if let downloadURL {
+                UserDefaults.standard.set(downloadURL, forKey: cachedDownloadURLKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: cachedDownloadURLKey)
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: cachedLatestVersionKey)
+            UserDefaults.standard.removeObject(forKey: cachedReleaseURLKey)
+            UserDefaults.standard.removeObject(forKey: cachedDownloadURLKey)
+        }
+        cachedLatestVersion = version
+        cachedReleaseURL = releaseURL
+        cachedDownloadURL = downloadURL
+    }
+
+    private func clearCachedVersionIfNeeded() {
+        guard let cachedLatestVersion else { return }
+        if Self.compareVersions(cachedLatestVersion, AppVersion.shortVersion) != .orderedDescending {
+            storeCachedLatestRelease(version: nil, releaseURL: nil, downloadURL: nil)
+        }
+    }
+
+    private func scheduleAutoCheckTimer() {
+        autoCheckTimer?.invalidate()
+        autoCheckTimer = nil
+
+        guard let nextDate = computeNextCheckDate(now: Date()) else {
+            nextCheckDate = nil
+            LogManager.shared.log("Auto check disabled or not scheduled")
+            return
+        }
+        if let existingNext = nextCheckDate, abs(existingNext.timeIntervalSince(nextDate)) < 1 {
+            return
+        }
+        nextCheckDate = nextDate
+        let interval = max(1, nextDate.timeIntervalSinceNow)
+        autoCheckTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            self?.handleAutoCheckTimerFired()
+        }
+        LogManager.shared.log("Next auto check scheduled at \(nextDate)")
+    }
+
+    private func computeNextCheckDate(now: Date) -> Date? {
+        guard isAutoCheckEnabled() else { return nil }
+        guard let lastCheckDate else {
+            return now.addingTimeInterval(initialAutoCheckDelay)
+        }
+        var next = lastCheckDate.addingTimeInterval(autoCheckInterval)
+        while next <= now {
+            next = next.addingTimeInterval(autoCheckInterval)
+        }
+        return next
+    }
+
+    private func handleAutoCheckTimerFired() {
+        guard isAutoCheckEnabled() else {
+            scheduleAutoCheckTimer()
+            return
+        }
+        LogManager.shared.log("Auto check timer fired")
+        checkForUpdates(userInitiated: false)
+    }
+
+    @objc private func handleUserDefaultsChanged() {
+        let keysToCheck = [autoCheckEnabledKey, lastCheckKey]
+        let currentState = defaultsSignature(for: keysToCheck)
+        if let lastDefaultsSignature, lastDefaultsSignature == currentState {
+            return
+        }
+        lastDefaultsSignature = currentState
+        loadLastCheckDate()
+        loadCachedLatestVersion()
+        clearCachedVersionIfNeeded()
+        scheduleAutoCheckTimer()
+    }
+
+    private func defaultsSignature(for keys: [String]) -> String {
+        let defaults = UserDefaults.standard
+        return keys.map { key in
+            if key == autoCheckEnabledKey {
+                let value = defaults.bool(forKey: key)
+                return "\(key)=\(value)"
+            }
+            if key == lastCheckKey {
+                let value = defaults.double(forKey: key)
+                return "\(key)=\(value)"
+            }
+            return "\(key)="
+        }.joined(separator: ";")
+    }
+
+    private var lastDefaultsSignature: String?
 
     nonisolated private static func fetchLatestRelease() async throws -> GitHubRelease {
         do {

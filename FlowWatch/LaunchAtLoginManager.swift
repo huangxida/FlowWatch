@@ -39,7 +39,7 @@ final class LaunchAtLoginManager {
     
     func checkAndPrompt() {
         guard #available(macOS 13.0, *) else { return }
-        
+        LogManager.shared.log("Check launch at login status")
         // 如果已经开启，无需提示
         if isEnabled { return }
         
@@ -63,6 +63,7 @@ final class LaunchAtLoginManager {
         NSApp.activate(ignoringOtherApps: true)
         
         let response = alert.runModal()
+        LogManager.shared.log("Launch at login prompt response: \(response.rawValue)")
         
         let defaults = UserDefaults.standard
         defaults.set(true, forKey: hasPromptedKey)
@@ -71,8 +72,9 @@ final class LaunchAtLoginManager {
             // 允许
             do {
                 try setEnabled(true)
+                LogManager.shared.log("Launch at login enabled by user")
             } catch {
-                print("Failed to enable launch at login: \(error)")
+                LogManager.shared.log("Failed to enable launch at login: \(error)", level: .error)
             }
         }
     }
