@@ -141,12 +141,14 @@ final class LogManager {
             }
         } catch {
             fileHandle = nil
+            crashLogFileDescriptor = -1
         }
     }
 
     private func closeFile() {
         try? fileHandle?.close()
         fileHandle = nil
+        crashLogFileDescriptor = -1
     }
 
     private func cleanupOldLogs(relativeTo date: Date) {
